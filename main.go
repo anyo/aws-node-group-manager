@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ssm"
 
-	ssmTypes "github.com/anyo/aws-node-group-manager/pkg/api"
+	ssmTypes "github.com/anyo/aws-node-group-manager/pkg/apis"
 )
 
 var region string
