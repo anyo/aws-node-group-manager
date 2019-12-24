@@ -8,6 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ssm"
+
+	ssmTypes "github.com/anyo/aws-node-group-manager/pkg/api"
 )
 
 var region string
@@ -37,7 +39,7 @@ func getSession() session.Session {
 	return *session
 }
 
-func getEksOptimizedAmi(session *session.Session, region string, k8sVersion string) SsmRecommendedEksAmi {
+func getEksOptimizedAmi(session *session.Session, region string, k8sVersion string) ssmTypes.SsmRecommendedEksAmi {
 	ssmSvc := ssm.New(session)
 
 	paramName := "/aws/service/eks/optimized-ami/1.14/amazon-linux-2/recommended"
@@ -51,14 +53,14 @@ func getEksOptimizedAmi(session *session.Session, region string, k8sVersion stri
 		os.Exit(1)
 	}
 
-	var recommended SsmRecommendedEksAmiValue
+	var recommended ssmTypes.SsmRecommendedEksAmiValue
 	err = json.Unmarshal([]byte(*param.Parameter.Value), &recommended)
 	if err != nil {
 		log.Fatal("Failed to unmarshal the ami response", err)
 		os.Exit(1)
 	}
 
-	response := SsmRecommendedEksAmi{
+	response := ssmTypes.SsmRecommendedEksAmi{
 		SsmRecommendedEksAmiValue: recommended,
 		Name:                      *param.Parameter.Name,
 		ARN:                       *param.Parameter.ARN,
