@@ -1,28 +1,47 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ssm"
 
-	ssmTypes "github.com/anyo/aws-node-group-manager/pkg/apis"
+	controllers "github.com/anyo/aws-node-group-manager/pkg/controllers"
 )
 
 var region string
 var k8sVersion string
+var alwaysLatestAmi bool
+var asgDesiredCount int
+var asgMinCount int
+var asgMaxCount int
 
 func main() {
 	region = "us-east-1"
 	k8sVersion = "1.14"
+	alwaysLatestAmi = false
+
 	session := getSession()
 
-	ami := getEksOptimizedAmi(&session, region, k8sVersion)
+	ssmSvc := controllers.SsmService{
+		AwsSession: session,
+		Region:     region,
+	}
+
+	ami, err := ssmSvc.GetEksOptimizedAmi(k8sVersion)
+	if err != nil {
+		log.Panicln(err)
+	}
 
 	log.Println(ami)
+
+	asgSvc := controllers.AsgService{
+		AwsSession: session,
+		Region:     region,
+	}
+
+	asgSvc.GetAutoScaingGroups()
 }
 
 func getSession() session.Session {
@@ -37,34 +56,4 @@ func getSession() session.Session {
 	}
 
 	return *session
-}
-
-func getEksOptimizedAmi(session *session.Session, region string, k8sVersion string) ssmTypes.SsmRecommendedEksAmi {
-	ssmSvc := ssm.New(session)
-
-	paramName := "/aws/service/eks/optimized-ami/1.14/amazon-linux-2/recommended"
-	input := ssm.GetParameterInput{
-		Name: &paramName,
-	}
-	param, err := ssmSvc.GetParameter(&input)
-
-	if err != nil {
-		log.Fatal("Error while getting session", err)
-		os.Exit(1)
-	}
-
-	var recommended ssmTypes.SsmRecommendedEksAmiValue
-	err = json.Unmarshal([]byte(*param.Parameter.Value), &recommended)
-	if err != nil {
-		log.Fatal("Failed to unmarshal the ami response", err)
-		os.Exit(1)
-	}
-
-	response := ssmTypes.SsmRecommendedEksAmi{
-		SsmRecommendedEksAmiValue: recommended,
-		Name:                      *param.Parameter.Name,
-		ARN:                       *param.Parameter.ARN,
-	}
-
-	return response
 }
