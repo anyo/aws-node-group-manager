@@ -1,4 +1,4 @@
-package api
+package apis
 
 // SsmRecommendedEksAmiValue represets the json response from ssm response
 type SsmRecommendedEksAmiValue struct {
