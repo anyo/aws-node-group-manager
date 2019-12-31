@@ -60,19 +60,40 @@ func (r *Ec2Service) CreateLaunchTemplate(configOptions *apiTypes.LaunchTemplate
 		tags = append(tags, &t)
 	}
 
-	tsr := ec2.LaunchTemplateTagSpecificationRequest{ResourceType: aws.String("instance"), Tags: tags}
-	tagSpecificationRequest := []*ec2.LaunchTemplateTagSpecificationRequest{&tsr}
+	instanceTags := ec2.LaunchTemplateTagSpecificationRequest{ResourceType: aws.String("instance"), Tags: tags}
+	volumeTags := ec2.LaunchTemplateTagSpecificationRequest{ResourceType: aws.String("volume"), Tags: tags}
+	tagSpecificationRequest := []*ec2.LaunchTemplateTagSpecificationRequest{&instanceTags, &volumeTags}
+
+	networkInterface := ec2.LaunchTemplateInstanceNetworkInterfaceSpecificationRequest{
+		AssociatePublicIpAddress: aws.Bool(configOptions.PublicIps),
+		Groups:                   configOptions.SecurityGroups,
+		DeviceIndex:              aws.Int64(0),
+		DeleteOnTermination:      aws.Bool(true),
+	}
+	networkInterfaces := []*ec2.LaunchTemplateInstanceNetworkInterfaceSpecificationRequest{&networkInterface}
+
+	bdm := []*ec2.LaunchTemplateBlockDeviceMappingRequest{}
+	deviceMapping := ec2.LaunchTemplateBlockDeviceMappingRequest{
+		DeviceName: aws.String("/dev/xvda"),
+		Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
+			VolumeSize: aws.Int64(configOptions.EbsVolumeSize),
+			VolumeType: aws.String("gp2"),
+		},
+	}
+
+	bdm = append(bdm, &deviceMapping)
 
 	templateRequest := &ec2.RequestLaunchTemplateData{
+		BlockDeviceMappings: bdm,
 		IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecificationRequest{
 			Name: aws.String(configOptions.IamInstanceProfile),
 		},
 		ImageId:           aws.String(configOptions.AmiID),
 		InstanceType:      aws.String(configOptions.InstanceType),
 		KeyName:           aws.String(configOptions.KeyName),
-		SecurityGroupIds:  configOptions.SecurityGroups,
 		UserData:          aws.String(configOptions.UserData),
 		TagSpecifications: tagSpecificationRequest,
+		NetworkInterfaces: networkInterfaces,
 	}
 
 	input := ec2.CreateLaunchTemplateInput{

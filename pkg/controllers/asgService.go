@@ -128,9 +128,8 @@ func (r *AsgService) CreateAsg(asgOptions *apiTypes.AutoScalingGroupOptions) (*a
 		DesiredCapacity:      aws.Int64(asgOptions.DesiredInstances),
 		MinSize:              aws.Int64(asgOptions.MinInstances),
 		MaxSize:              aws.Int64(asgOptions.MaxInstances),
-		//LaunchConfigurationName: aws.String(asgOptions.LaunchConfName),
-		Tags:           tags,
-		LaunchTemplate: &launchTemplateSpecification,
+		Tags:                 tags,
+		LaunchTemplate:       &launchTemplateSpecification,
 	}
 
 	output, err := asgSvc.CreateAutoScalingGroup(&input)

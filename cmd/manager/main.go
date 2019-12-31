@@ -40,7 +40,7 @@ func main() {
 	// log.Println("Launch Configuration created: ", success)
 
 	template, success := createLaunchTemplate(ec2Svc, ami)
-	log.Println("Launch Template created: ", template.LaunchTemplateName)
+	log.Println("Launch Template created: ", *template.LaunchTemplateName)
 
 	success = createAutoScalingGroup(asgSvc, *template.LaunchTemplateName)
 	log.Println("ASG created: ", success)
@@ -168,7 +168,7 @@ func createLaunchTemplate(ec2Svc controllers.Ec2Service, ami apiTypes.SsmRecomme
 	///////// This information will come from the CRD yaml //////////
 	/////////////////////////////////////////////////////////////////
 	name := "OperatorGenerated-GeneralPurpose"
-	publicIps := true
+	publicIps := false
 	instanceType := "t2.medium"
 	keyName := "talhaverse"
 
