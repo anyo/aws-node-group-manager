@@ -24,8 +24,31 @@ var alwaysLatestAmi bool
 func main() {
 	region = "us-east-1"
 	k8sVersion = "1.14"
-	alwaysLatestAmi = false
 
+	session := getSession()
+	ssmSvc := controllers.SsmService{AwsSession: session, Region: region}
+	asgSvc := controllers.AsgService{AwsSession: session, Region: region}
+	ec2Svc := controllers.Ec2Service{AwsSession: session, Region: region}
+
+	ami, err := ssmSvc.GetEksOptimizedAmi(k8sVersion)
+	if err != nil {
+		log.Panicln(err)
+	}
+	log.Println("AWS AMI: ", ami.ImageName)
+
+	c := loadConfig()
+	c.AmiID = ami.ImageID
+
+	template, success := createLaunchTemplate(ec2Svc, &c.LaunchTemplateOptions)
+	log.Println("Launch Template created: ", *template.LaunchTemplateName)
+
+	success = createAutoScalingGroup(asgSvc, *template.LaunchTemplateName, &c.AutoScalingGroupOptions)
+	log.Println("ASG created: ", success)
+
+	statusMonitor((asgSvc))
+}
+
+func loadConfig() apiTypes.OperatorModel {
 	dir, err := os.Getwd()
 	filePath := dir + "/cmd/manager/config.yaml"
 	config, err := ioutil.ReadFile(filePath)
@@ -38,26 +61,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Unmarshal: %v", err)
 	}
-
-	session := getSession()
-	ssmSvc := controllers.SsmService{AwsSession: session, Region: region}
-	asgSvc := controllers.AsgService{AwsSession: session, Region: region}
-	ec2Svc := controllers.Ec2Service{AwsSession: session, Region: region}
-
-	ami, err := ssmSvc.GetEksOptimizedAmi(k8sVersion)
-	if err != nil {
-		log.Panicln(err)
-	}
-	log.Println("AWS AMI: ", ami.ImageName)
-	c.AmiID = ami.ImageID
-
-	template, success := createLaunchTemplate(ec2Svc, &c.LaunchTemplateOptions)
-	log.Println("Launch Template created: ", *template.LaunchTemplateName)
-
-	success = createAutoScalingGroup(asgSvc, *template.LaunchTemplateName, &c.AutoScalingGroupOptions)
-	log.Println("ASG created: ", success)
-
-	statusMonitor((asgSvc))
+	return c
 }
 
 func statusMonitor(asgSvc controllers.AsgService) {
