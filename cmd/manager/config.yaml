@@ -1,0 +1,29 @@
+asg:
+  name: GeneralPurpose
+  max: 5
+  min: 1
+  desired: 3
+  subnets: "subnet-0fb3f183f38ba186f,subnet-0811b038c2d9a27ef,subnet-07f40d97bcba2e399"
+  tags:
+    CreatedBy: AsgOperator
+  
+ec2:
+  namePrefix: GeneralPurpose-Worker
+  launchTemplate:
+    tags:
+      CreatedBy: AsgOperator
+      Nodegroup: GeneralPurpose
+    name: GeneralPurpose
+    publicIps: false
+    instanceType: t2.medium
+    keyName: talhaverse
+    securityGroups:
+      - sg-03d8fd9741d919892
+    iamInstanceProfile: talhan-ec2-admin
+    ebsVolume: 50
+    userData: ' yum upgrade -y
+	              yum install bind-utils -y
+	              yum instamm git -y'
+ssm:
+  autoAmiUpgrade: false
+
