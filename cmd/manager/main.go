@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/ioutil"
 	"log"
 	"os"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"gopkg.in/yaml.v2"
 
 	"encoding/base64"
 
@@ -24,27 +26,41 @@ func main() {
 	k8sVersion = "1.14"
 	alwaysLatestAmi = false
 
+	dir, err := os.Getwd()
+	filePath := dir + "/cmd/manager/config.yaml"
+	config, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		log.Fatal(err, dir)
+		os.Exit(1)
+	}
+	c := apiTypes.OperatorModel{}
+	err = yaml.Unmarshal(config, &c)
+	if err != nil {
+		log.Fatalf("Unmarshal: %v", err)
+	}
+
 	session := getSession()
 	ssmSvc := controllers.SsmService{AwsSession: session, Region: region}
+	asgSvc := controllers.AsgService{AwsSession: session, Region: region}
+	ec2Svc := controllers.Ec2Service{AwsSession: session, Region: region}
 
 	ami, err := ssmSvc.GetEksOptimizedAmi(k8sVersion)
 	if err != nil {
 		log.Panicln(err)
 	}
 	log.Println("AWS AMI: ", ami.ImageName)
+	c.AmiID = ami.ImageID
 
-	asgSvc := controllers.AsgService{AwsSession: session, Region: region}
-	ec2Svc := controllers.Ec2Service{AwsSession: session, Region: region}
-
-	// success := createLaunchConfig(asgSvc, ami)
-	// log.Println("Launch Configuration created: ", success)
-
-	template, success := createLaunchTemplate(ec2Svc, ami)
+	template, success := createLaunchTemplate(ec2Svc, &c.LaunchTemplateOptions)
 	log.Println("Launch Template created: ", *template.LaunchTemplateName)
 
-	success = createAutoScalingGroup(asgSvc, *template.LaunchTemplateName)
+	success = createAutoScalingGroup(asgSvc, *template.LaunchTemplateName, &c.AutoScalingGroupOptions)
 	log.Println("ASG created: ", success)
 
+	statusMonitor((asgSvc))
+}
+
+func statusMonitor(asgSvc controllers.AsgService) {
 	asg := asgSvc.GetAutoScalingGroup("OperatorGenerated-GeneralPurpose")
 	for {
 		if *asg.DesiredCapacity == int64(len(asg.Instances)) {
@@ -76,41 +92,50 @@ func main() {
 	}
 }
 
-func createAutoScalingGroup(asgSvc controllers.AsgService, templateName string) bool {
-	/////////////////////////////////////////////////////////////////
-	///////// This information will come from the CRD yaml //////////
-	/////////////////////////////////////////////////////////////////
-	name := "OperatorGenerated-GeneralPurpose"
-	subnets := "subnet-0fb3f183f38ba186f,subnet-0811b038c2d9a27ef,subnet-07f40d97bcba2e399"
-	desiredInstances := int64(3)
-	minInstances := int64(1)
-	maxInstances := int64(5)
-	//lcName := lcr
-	tags := map[string]string{
-		"CreatedBy": "ASG-OPERATOR",
-	}
-	/////////////////////////////////////////////////////////////////
-	/////////////////////////////////////////////////////////////////
-	/////////////////////////////////////////////////////////////////
-
-	asgInstance := apiTypes.AutoScalingGroupOptions{
-		Name:               name,
-		Subnets:            subnets,
-		DesiredInstances:   desiredInstances,
-		MinInstances:       minInstances,
-		MaxInstances:       maxInstances,
-		LaunchConfName:     name,
-		LaunchTemplateName: templateName,
-		Tags:               tags,
-	}
-
-	_, asgErr := asgSvc.CreateAsg(&asgInstance)
+func createAutoScalingGroup(asgSvc controllers.AsgService, templateName string, asgInstance *apiTypes.AutoScalingGroupOptions) bool {
+	asgInstance.Name = "OperatorGenerated-" + asgInstance.Name
+	asgInstance.LaunchTemplateName = templateName
+	_, asgErr := asgSvc.CreateAsg(asgInstance)
 	if asgErr != nil {
 		log.Panicln("Failed to create asg", asgErr)
 		return false
 	}
 
 	return true
+}
+
+func createLaunchTemplate(ec2Svc controllers.Ec2Service, launchTemplateInput *apiTypes.LaunchTemplateOptions) (*ec2.LaunchTemplate, bool) {
+
+	launchTemplate := ec2Svc.GetLaunchTemplate(launchTemplateInput.Name)
+	if launchTemplate != nil {
+		log.Println("Launch template already exists: ", *launchTemplate.LaunchTemplateName)
+		return launchTemplate, false
+	}
+
+	launchTemplateInput.Name = "OperatorGenerated-" + launchTemplateInput.Name
+	launchTemplateInput.UserData = base64.StdEncoding.EncodeToString([]byte(launchTemplateInput.UserData))
+
+	template, err := ec2Svc.CreateLaunchTemplate(launchTemplateInput)
+	if err != nil {
+		log.Panicln("Failed to create launch config", err)
+		return nil, true
+	}
+
+	return template, false
+}
+
+func getSession() session.Session {
+	session, err := session.NewSessionWithOptions(session.Options{
+		Profile: "argentus",
+		Config:  aws.Config{Region: aws.String(region)},
+	})
+
+	if err != nil {
+		log.Fatal("Error while getting session", err)
+		os.Exit(1)
+	}
+
+	return *session
 }
 
 func createLaunchConfig(asgSvc controllers.AsgService, ami apiTypes.SsmRecommendedEksAmi) bool {
@@ -161,74 +186,4 @@ func createLaunchConfig(asgSvc controllers.AsgService, ami apiTypes.SsmRecommend
 	}
 
 	return true
-}
-
-func createLaunchTemplate(ec2Svc controllers.Ec2Service, ami apiTypes.SsmRecommendedEksAmi) (*ec2.LaunchTemplate, bool) {
-	/////////////////////////////////////////////////////////////////
-	///////// This information will come from the CRD yaml //////////
-	/////////////////////////////////////////////////////////////////
-	name := "OperatorGenerated-GeneralPurpose"
-	publicIps := false
-	instanceType := "t2.medium"
-	keyName := "talhaverse"
-
-	sg := "sg-03d8fd9741d919892"
-	securityGroups := []*string{&sg}
-
-	userData := base64.StdEncoding.EncodeToString([]byte(`
-	yum upgrade -y
-	yum install bind-utils -y
-	yum instamm git -y
-	`))
-	iamInstanceProfile := "talhan-ec2-admin"
-	ebsSize := int64(50)
-	/////////////////////////////////////////////////////////////////
-	/////////////////////////////////////////////////////////////////
-	/////////////////////////////////////////////////////////////////
-
-	launchTemplate := ec2Svc.GetLaunchTemplate(name)
-	if launchTemplate != nil {
-		log.Println("Launch configuration already exists: ", *launchTemplate.LaunchTemplateName)
-		return launchTemplate, false
-	}
-
-	tags := map[string]string{
-		"CreatedBy": "ASG-OPERATOR",
-		"Name":      "ASG-OPERATOR-WORKER",
-	}
-
-	launchTemplateInput := apiTypes.LaunchTemplateOptions{
-		Name:               name,
-		AmiID:              ami.ImageID,
-		PublicIps:          publicIps,
-		InstanceType:       instanceType,
-		KeyName:            keyName,
-		SecurityGroups:     securityGroups,
-		UserData:           userData,
-		IamInstanceProfile: iamInstanceProfile,
-		EbsVolumeSize:      ebsSize,
-		Tags:               tags,
-	}
-
-	template, err := ec2Svc.CreateLaunchTemplate(&launchTemplateInput)
-	if err != nil {
-		log.Panicln("Failed to create launch config", err)
-		return nil, true
-	}
-
-	return template, false
-}
-
-func getSession() session.Session {
-	session, err := session.NewSessionWithOptions(session.Options{
-		Profile: "argentus",
-		Config:  aws.Config{Region: aws.String(region)},
-	})
-
-	if err != nil {
-		log.Fatal("Error while getting session", err)
-		os.Exit(1)
-	}
-
-	return *session
 }

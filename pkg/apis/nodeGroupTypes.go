@@ -15,26 +15,44 @@ type LaunchConfigurationOptions struct {
 
 // LaunchTemplateOptions represents all the fields to create a Launch config
 type LaunchTemplateOptions struct {
-	Name               string
-	AmiID              string
-	PublicIps          bool
-	InstanceType       string
-	KeyName            string
-	SecurityGroups     []*string
-	UserData           string
-	IamInstanceProfile string
-	EbsVolumeSize      int64
-	Tags               map[string]string
+	Name               string            `yaml:"name"`
+	AmiID              string            `yaml:"-"`
+	PublicIps          bool              `yaml:"publicIps"`
+	InstanceType       string            `yaml:"instanceType"`
+	KeyName            string            `yaml:"keyName"`
+	SecurityGroups     []*string         `yaml:"securityGroups"`
+	UserData           string            `yaml:"userData"`
+	IamInstanceProfile string            `yaml:"iamInstanceProfile"`
+	EbsVolumeSize      int64             `yaml:"ebsVolume"`
+	Tags               map[string]string `yaml:"tags"`
 }
 
 // AutoScalingGroupOptions represents all the fields to create a AutoScalingGroup config
 type AutoScalingGroupOptions struct {
-	Name               string
-	Subnets            string //csv list
-	DesiredInstances   int64
-	MaxInstances       int64
-	MinInstances       int64
-	LaunchConfName     string
-	LaunchTemplateName string
-	Tags               map[string]string
+	Name               string            `yaml:"name"`
+	Subnets            string            `yaml:"subnets"`
+	DesiredInstances   int64             `yaml:"desired"`
+	MaxInstances       int64             `yaml:"max"`
+	MinInstances       int64             `yaml:"min"`
+	LaunchConfName     string            `yaml:"-"`
+	LaunchTemplateName string            `yaml:"-"`
+	Tags               map[string]string `yaml:"tags"`
+}
+
+// Ec2Options represents
+type Ec2Options struct {
+	LaunchTemplateOptions `yaml:"launchTemplate"`
+	NamePrefix            string `yaml:"string"`
+}
+
+// SSMOptions represents
+type SSMOptions struct {
+	AutoUpgradeAmiChange bool `yaml:"autoAmiUpgrade"`
+}
+
+// OperatorModel represents
+type OperatorModel struct {
+	Ec2Options              `yaml:"ec2"`
+	AutoScalingGroupOptions `yaml:"asg"`
+	SSMOptions              `yaml:"ssm"`
 }

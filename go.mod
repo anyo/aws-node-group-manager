@@ -17,6 +17,7 @@ require (
 	github.com/tidwall/gjson v1.3.5 // indirect
 	github.com/x86kernel/htmlcolor v0.0.0-20190529101448-c589f58466d0 // indirect
 	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553 // indirect
+	gopkg.in/yaml.v2 v2.2.7
 	rsc.io/quote v1.5.2
 	rsc.io/quote/v3 v3.1.0
 )
