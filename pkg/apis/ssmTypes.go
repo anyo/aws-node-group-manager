@@ -4,7 +4,7 @@ package apis
 type SsmRecommendedEksAmiValue struct {
 	ImageName     string `json:"image_name"`
 	ImageID       string `json:"image_id"`
-	Schemaversion string `json:"schema_version"`
+	SchemaVersion string `json:"schema_version"`
 }
 
 // SsmRecommendedEksAmi represets the json response from ssm response

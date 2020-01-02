@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"log"
+	"reflect"
 
 	apiTypes "github.com/anyo/aws-node-group-manager/pkg/apis"
 	"github.com/aws/aws-sdk-go/aws"
@@ -135,4 +136,70 @@ func (r *AsgService) CreateAsg(asgOptions *apiTypes.AutoScalingGroupOptions) (*a
 	output, err := asgSvc.CreateAutoScalingGroup(&input)
 
 	return output, err
+}
+
+//UpdateAsg represents
+func (r *AsgService) UpdateAsg(asgOptions *apiTypes.AutoScalingGroupOptions) (*autoscaling.UpdateAutoScalingGroupOutput, error) {
+	asgSvc := autoscaling.New(&r.AwsSession)
+	tags := []*autoscaling.Tag{}
+
+	for i, v := range asgOptions.Tags {
+		t := autoscaling.Tag{
+			Key:               aws.String(i),
+			PropagateAtLaunch: aws.Bool(true),
+			ResourceId:        aws.String(asgOptions.Name),
+			ResourceType:      aws.String("auto-scaling-group"),
+			Value:             aws.String(v),
+		}
+
+		tags = append(tags, &t)
+	}
+
+	input := autoscaling.UpdateAutoScalingGroupInput{
+		DesiredCapacity: aws.Int64(asgOptions.DesiredInstances),
+		MinSize:         aws.Int64(asgOptions.MinInstances),
+		MaxSize:         aws.Int64(asgOptions.MaxInstances),
+	}
+
+	tagsInput := autoscaling.CreateOrUpdateTagsInput{}
+
+	output, err := asgSvc.UpdateAutoScalingGroup(&input)
+	if err != nil {
+		log.Println("Error updating ASG:", asgOptions.Name)
+		return nil, err
+	}
+
+	_, tagsErr := asgSvc.CreateOrUpdateTags(&tagsInput)
+	if tagsErr != nil {
+		log.Println("Error updating tags for ASG:", asgOptions.Name)
+		return output, err
+	}
+
+	return output, err
+}
+
+//CompareAsg represents
+func (r *AsgService) CompareAsg(new *apiTypes.AutoScalingGroupOptions, current *autoscaling.Group) (bool, error) {
+	if new.DesiredInstances != *current.DesiredCapacity {
+		return true, nil
+	}
+
+	if new.MaxInstances != *current.MaxSize {
+		return true, nil
+	}
+
+	if new.MinInstances != *current.MinSize {
+		return true, nil
+	}
+
+	currentTags := make(map[string]string)
+	for _, v := range current.Tags {
+		currentTags[*v.Key] = *v.Value
+	}
+
+	if !reflect.DeepEqual(new.Tags, currentTags) {
+		return true, nil
+	}
+
+	return false, nil
 }

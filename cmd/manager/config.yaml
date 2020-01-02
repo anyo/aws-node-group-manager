@@ -20,10 +20,12 @@ ec2:
     securityGroups:
       - sg-03d8fd9741d919892
     iamInstanceProfile: talhan-ec2-admin
-    ebsVolume: 50
-    userData: ' yum upgrade -y
-	              yum install bind-utils -y
-	              yum instamm git -y'
+    ebs:
+      volumeSize: 50
+      volumeType: st1
+    userData: 'yum upgrade -y
+	             yum install bind-utils -y
+               yum install git -y'
+
 ssm:
   autoAmiUpgrade: false
-

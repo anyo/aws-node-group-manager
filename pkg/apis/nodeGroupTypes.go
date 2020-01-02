@@ -23,8 +23,8 @@ type LaunchTemplateOptions struct {
 	SecurityGroups     []*string         `yaml:"securityGroups"`
 	UserData           string            `yaml:"userData"`
 	IamInstanceProfile string            `yaml:"iamInstanceProfile"`
-	EbsVolumeSize      int64             `yaml:"ebsVolume"`
 	Tags               map[string]string `yaml:"tags"`
+	EbsVolume          `yaml:"ebs"`
 }
 
 // AutoScalingGroupOptions represents all the fields to create a AutoScalingGroup config
@@ -37,6 +37,12 @@ type AutoScalingGroupOptions struct {
 	LaunchConfName     string            `yaml:"-"`
 	LaunchTemplateName string            `yaml:"-"`
 	Tags               map[string]string `yaml:"tags"`
+}
+
+// EbsVolume represents
+type EbsVolume struct {
+	VolumeType string `yaml:"volumeType"`
+	VolumeSize int64  `yaml:"volumeSize"`
 }
 
 // Ec2Options represents
