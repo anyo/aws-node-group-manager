@@ -90,7 +90,7 @@ func (r *ReconcilerService) ReconcileAutoScalingGroup(asgInstance *apiTypes.Auto
 		}
 
 		if changed {
-			log.Println("ASG has changed: ", asg.AutoScalingGroupName)
+			log.Println("ASG has changed: ", *asg.AutoScalingGroupName)
 			_, err := r.AsgService.UpdateAsg(asgInstance)
 
 			if err != nil {
@@ -99,7 +99,7 @@ func (r *ReconcilerService) ReconcileAutoScalingGroup(asgInstance *apiTypes.Auto
 			}
 
 			asg = r.AsgService.GetAutoScalingGroup(asgInstance.Name)
-			log.Println("ASG updated: ", asg.AutoScalingGroupName)
+			log.Println("ASG updated: ", *asg.AutoScalingGroupName)
 
 			// check if the changes has been applied
 			r.AsgStatusMonitor()
@@ -139,10 +139,10 @@ func (r *ReconcilerService) AsgStatusMonitor() {
 	asg := r.AsgService.GetAutoScalingGroup("OperatorGenerated-GeneralPurpose")
 	for {
 		if *asg.DesiredCapacity == int64(len(asg.Instances)) {
-			log.Printf("Desired Capacity matched Current instances: %v == %v \n", *asg.DesiredCapacity, len(asg.Instances))
+			log.Printf("Desired Capacity matched Current instances: Desired - %v == Current - %v \n", *asg.DesiredCapacity, len(asg.Instances))
 			break
 		} else {
-			log.Printf("Waiting for Desired Capacity matched Current instances: %v == %v ... \n", *asg.DesiredCapacity, len(asg.Instances))
+			log.Printf("Waiting for Desired Capacity matched Current instances: Desired - %v == Current - %v ... \n", *asg.DesiredCapacity, len(asg.Instances))
 			time.Sleep(2 * time.Second)
 			asg = r.AsgService.GetAutoScalingGroup("OperatorGenerated-GeneralPurpose")
 		}

@@ -156,12 +156,15 @@ func (r *AsgService) UpdateAsg(asgOptions *apiTypes.AutoScalingGroupOptions) (*a
 	}
 
 	input := autoscaling.UpdateAutoScalingGroupInput{
-		DesiredCapacity: aws.Int64(asgOptions.DesiredInstances),
-		MinSize:         aws.Int64(asgOptions.MinInstances),
-		MaxSize:         aws.Int64(asgOptions.MaxInstances),
+		AutoScalingGroupName: aws.String(asgOptions.Name),
+		DesiredCapacity:      aws.Int64(asgOptions.DesiredInstances),
+		MinSize:              aws.Int64(asgOptions.MinInstances),
+		MaxSize:              aws.Int64(asgOptions.MaxInstances),
 	}
 
-	tagsInput := autoscaling.CreateOrUpdateTagsInput{}
+	tagsInput := autoscaling.CreateOrUpdateTagsInput{
+		Tags: tags,
+	}
 
 	output, err := asgSvc.UpdateAutoScalingGroup(&input)
 	if err != nil {
