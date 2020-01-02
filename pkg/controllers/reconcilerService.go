@@ -20,14 +20,15 @@ type ReconcilerService struct {
 }
 
 //ReconcileLaunchTemplate represents
-func (r *ReconcilerService) ReconcileLaunchTemplate(newLaunchTemplate *apiTypes.LaunchTemplateOptions) (*ec2.LaunchTemplate, bool) {
+func (r *ReconcilerService) ReconcileLaunchTemplate(newLaunchTemplate *apiTypes.LaunchTemplateOptions) (*string, *string, bool) {
 	newLaunchTemplate.Name = "OperatorGenerated-" + newLaunchTemplate.Name
 	newLaunchTemplate.UserData = base64.StdEncoding.EncodeToString([]byte(newLaunchTemplate.UserData))
 
 	launchTemplate := r.Ec2Service.GetLaunchTemplate(newLaunchTemplate.Name)
+	versionStr := strconv.Itoa(int(*launchTemplate.LatestVersionNumber))
 
 	if launchTemplate != nil {
-		versionStr := strconv.Itoa(int(*launchTemplate.LatestVersionNumber))
+
 		v := r.Ec2Service.GetLaunchTemplateVersion(launchTemplate.LaunchTemplateName, &versionStr)
 
 		newLaunchTemplate, changed := r.Ec2Service.CompareLaunchTemplateData(newLaunchTemplate, v.LaunchTemplateData)
@@ -35,20 +36,20 @@ func (r *ReconcilerService) ReconcileLaunchTemplate(newLaunchTemplate *apiTypes.
 		// update the launch template since its changed compared to the current latest version
 		if changed {
 			updated, success := r.updateLaunchTemplate(v, newLaunchTemplate)
-			return updated, success
+			return updated.LaunchTemplateName, &versionStr, success
 		}
 
 		log.Println("Launch template already exists and has not changed: ", *launchTemplate.LaunchTemplateName)
-		return launchTemplate, true
+		return launchTemplate.LaunchTemplateName, &versionStr, true
 	}
 
 	template, err := r.Ec2Service.CreateLaunchTemplate(newLaunchTemplate)
 	if err != nil {
 		log.Println("Failed to create launch template", err)
-		return nil, false
+		return nil, &versionStr, false
 	}
 
-	return template, true
+	return template.LaunchTemplateName, &versionStr, true
 }
 
 func (r *ReconcilerService) updateLaunchTemplate(launchTemplateVersion *ec2.LaunchTemplateVersion, newLaunchTemplate *apiTypes.LaunchTemplateOptions) (*ec2.LaunchTemplate, bool) {
@@ -74,9 +75,9 @@ func (r *ReconcilerService) updateLaunchTemplate(launchTemplateVersion *ec2.Laun
 }
 
 //ReconcileAutoScalingGroup represents
-func (r *ReconcilerService) ReconcileAutoScalingGroup(asgInstance *apiTypes.AutoScalingGroupOptions, templateName string, templateVersion int64) (*autoscaling.Group, bool) {
+func (r *ReconcilerService) ReconcileAutoScalingGroup(asgInstance *apiTypes.AutoScalingGroupOptions, templateName *string, templateVersion *string) (*autoscaling.Group, bool) {
 	asgInstance.Name = "OperatorGenerated-" + asgInstance.Name
-	asgInstance.LaunchTemplateName = templateName
+	asgInstance.LaunchTemplateName = *templateName
 
 	asg := r.AsgService.GetAutoScalingGroup(asgInstance.Name)
 
@@ -111,13 +112,25 @@ func (r *ReconcilerService) ReconcileAutoScalingGroup(asgInstance *apiTypes.Auto
 		staleInstances := make([]*autoscaling.Instance, 0)
 		log.Println("Total instances in the asg: ", len(asg.Instances))
 		for _, v := range asg.Instances {
-			if *v.LaunchTemplate.Version != string(templateVersion) {
+			if *v.LaunchTemplate.Version != *templateVersion {
+				log.Printf("Stale instance: '%v', required-'%v' vs current-'%v'", *v.InstanceId, templateVersion, *v.LaunchTemplate.Version)
 				staleInstances = append(staleInstances, v)
 			}
 		}
 
 		if len(staleInstances) > 0 {
 			log.Println("Stale Instances found in the ASG: ", *asg.AutoScalingGroupName, len(staleInstances))
+			for _, v := range staleInstances {
+				detached := r.AsgService.DetachInstance(v.InstanceId, asg.AutoScalingGroupName)
+				if detached {
+					r.AsgStatusMonitor()
+
+					_ = r.Ec2Service.ShutDownInstance(v.InstanceId)
+					_ = r.Ec2Service.TerminateInstance(v.InstanceId)
+				}
+			}
+		} else {
+			log.Printf("Stale Instances found in the ASG: '%v' - %v ", *asg.AutoScalingGroupName, len(staleInstances))
 		}
 
 		return asg, true

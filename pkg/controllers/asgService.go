@@ -3,6 +3,7 @@ package controllers
 import (
 	"log"
 	"reflect"
+	"time"
 
 	apiTypes "github.com/anyo/aws-node-group-manager/pkg/apis"
 	"github.com/aws/aws-sdk-go/aws"
@@ -205,4 +206,59 @@ func (r *AsgService) CompareAsg(new *apiTypes.AutoScalingGroupOptions, current *
 	}
 
 	return false, nil
+}
+
+// DetachInstance represents
+func (r *AsgService) DetachInstance(instanceID *string, asgName *string) bool {
+	asgSvc := autoscaling.New(&r.AwsSession)
+
+	input := autoscaling.DetachInstancesInput{
+		AutoScalingGroupName:           asgName,
+		InstanceIds:                    []*string{instanceID},
+		ShouldDecrementDesiredCapacity: aws.Bool(false),
+	}
+
+	output, err := asgSvc.DetachInstances(&input)
+	if err != nil {
+		log.Printf("Failed to detach instance: %v, error: %v", *instanceID, err)
+		return false
+	}
+	activity := output.Activities[0]
+
+	for {
+		if *activity.StatusCode != "Successful" {
+			log.Printf("Detaching instance: '%v', Message: '%v'", *instanceID, *activity.Description)
+			time.Sleep(2 * time.Second)
+		} else if *activity.StatusCode == "Successful" {
+			log.Printf("Detached instance: '%v', Progress: '%v', Message: %v", *instanceID, *output.Activities[0].Progress, *activity.Description)
+			return true
+		} else if *activity.StatusCode == "Failed" || *activity.StatusCode == "Cancelled" {
+			log.Printf("Failed to detach instance: '%v', Progress: '%v', Cause: %v", *instanceID, *output.Activities[0].Progress, activity.StatusMessage)
+			return false
+		}
+
+		activity = r.GetAutoScalingActivityStatus(output.Activities[0].ActivityId)
+		if activity == nil {
+			time.Sleep(2 * time.Second)
+			continue
+		}
+	}
+}
+
+//GetAutoScalingActivityStatus represents
+func (r *AsgService) GetAutoScalingActivityStatus(activityID *string) *autoscaling.Activity {
+	asgSvc := autoscaling.New(&r.AwsSession)
+
+	activityIds := []*string{activityID}
+	input := autoscaling.DescribeScalingActivitiesInput{
+		ActivityIds: activityIds,
+	}
+
+	output, err := asgSvc.DescribeScalingActivities(&input)
+	if err != nil {
+		log.Printf("Failed to get activity: %v, error: %v", activityID, err)
+		return nil
+	}
+
+	return output.Activities[0]
 }

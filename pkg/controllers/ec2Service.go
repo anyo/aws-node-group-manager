@@ -5,6 +5,7 @@ import (
 	"log"
 	"reflect"
 	"strconv"
+	"time"
 
 	apiTypes "github.com/anyo/aws-node-group-manager/pkg/apis"
 	"github.com/aws/aws-sdk-go/aws"
@@ -243,4 +244,95 @@ func (r *Ec2Service) getEc2Tags(tags map[string]string) []*ec2.Tag {
 	}
 
 	return ec2Tags
+}
+
+// ShutDownInstance represents
+func (r *Ec2Service) ShutDownInstance(instanceID *string) bool {
+	ec2Svc := ec2.New(&r.AwsSession)
+
+	input := ec2.StopInstancesInput{
+		InstanceIds: []*string{instanceID},
+	}
+
+	output, err := ec2Svc.StopInstances(&input)
+	if err != nil {
+		log.Printf("Failed to stop instance: %v, error: %v", *instanceID, err)
+		return false
+	}
+
+	state := output.StoppingInstances[0].CurrentState.Name
+	log.Printf("Stopping instance: '%v', State: '%v'", *instanceID, *state)
+
+	for {
+		if *state == "stopped" || *state == "terminated" {
+			log.Printf("Instance stopped: '%v', State: '%v'", *instanceID, *state)
+			return true
+		}
+
+		state = r.GetInstanceState(instanceID)
+		if state == nil {
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		log.Printf("Stopping instance: '%v', State: '%v'", *instanceID, *state)
+		time.Sleep(2 * time.Second)
+	}
+}
+
+// TerminateInstance represents
+func (r *Ec2Service) TerminateInstance(instanceID *string) bool {
+	ec2Svc := ec2.New(&r.AwsSession)
+
+	input := ec2.TerminateInstancesInput{
+		InstanceIds: []*string{instanceID},
+	}
+
+	output, err := ec2Svc.TerminateInstances(&input)
+	if err != nil {
+		log.Printf("Failed to terminate instance: %v, error: %v", *instanceID, err)
+		return false
+	}
+
+	state := output.TerminatingInstances[0].CurrentState.Name
+	log.Printf("Terminating instance: '%v', State: '%v'", *instanceID, *state)
+
+	for {
+		if *state == "terminated" {
+			log.Printf("Instance terminated: '%v', State: '%v'", *instanceID, *state)
+			return true
+		}
+
+		state = r.GetInstanceState(instanceID)
+		if state == nil {
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		log.Printf("Termnate instance: '%v', State: '%v'", *instanceID, *state)
+		time.Sleep(2 * time.Second)
+	}
+}
+
+// GetInstanceState represents
+func (r *Ec2Service) GetInstanceState(instanceID *string) *string {
+	ec2Svc := ec2.New(&r.AwsSession)
+
+	input := ec2.DescribeInstanceStatusInput{
+		InstanceIds:         []*string{instanceID},
+		IncludeAllInstances: aws.Bool(true),
+	}
+
+	output, err := ec2Svc.DescribeInstanceStatus(&input)
+	if err != nil {
+		log.Printf("Failed to get instance state: %v, error: %v", *instanceID, err)
+		return nil
+	}
+
+	for _, v := range output.InstanceStatuses {
+		currentState := v.InstanceState.Name
+		return currentState
+	}
+
+	return nil
 }

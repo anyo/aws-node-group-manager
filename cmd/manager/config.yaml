@@ -14,7 +14,7 @@ ec2:
       CreatedBy: AsgOperator
       Nodegroup: GeneralPurpose
     name: GeneralPurpose
-    publicIps: false
+    publicIps: true
     instanceType: t2.medium
     keyName: talhaverse
     securityGroups:

@@ -35,13 +35,13 @@ func main() {
 	c := loadConfig()
 	c.AmiID = reconcilerSvc.GetLatestEksAmi(&k8sVersion)
 
-	template, success := reconcilerSvc.ReconcileLaunchTemplate(&c.LaunchTemplateOptions)
+	templateName, latestVersion, success := reconcilerSvc.ReconcileLaunchTemplate(&c.LaunchTemplateOptions)
 
 	if !success {
 		os.Exit(1)
 	}
 
-	_, success = reconcilerSvc.ReconcileAutoScalingGroup(&c.AutoScalingGroupOptions, *template.LaunchTemplateName, *template.LatestVersionNumber)
+	_, success = reconcilerSvc.ReconcileAutoScalingGroup(&c.AutoScalingGroupOptions, templateName, latestVersion)
 	if !success {
 		os.Exit(1)
 	}
