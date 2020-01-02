@@ -36,19 +36,17 @@ func main() {
 	c.AmiID = reconcilerSvc.GetLatestEksAmi(&k8sVersion)
 
 	template, success := reconcilerSvc.ReconcileLaunchTemplate(&c.LaunchTemplateOptions)
-	log.Println("Launch Template created: ", *template.LaunchTemplateName)
 
 	if !success {
 		os.Exit(1)
 	}
 
 	_, success = reconcilerSvc.ReconcileAutoScalingGroup(&c.AutoScalingGroupOptions, *template.LaunchTemplateName, *template.LatestVersionNumber)
-	log.Println("ASG created: ", success)
 	if !success {
 		os.Exit(1)
 	}
 
-	reconcilerSvc.AsgStatusMonitor()
+	os.Exit(0)
 }
 
 //GetAwsSession represents

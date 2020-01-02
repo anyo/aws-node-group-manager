@@ -86,7 +86,7 @@ func (r *ReconcilerService) ReconcileAutoScalingGroup(asgInstance *apiTypes.Auto
 		changed, err := r.AsgService.CompareAsg(asgInstance, asg)
 		if err != nil {
 			log.Println("Failed to check if ASG has changed.", err, asg.AutoScalingGroupName)
-			return nil, true
+			return nil, false
 		}
 
 		if changed {
@@ -95,7 +95,7 @@ func (r *ReconcilerService) ReconcileAutoScalingGroup(asgInstance *apiTypes.Auto
 
 			if err != nil {
 				log.Println("Failed to update ASG.", err, asg.AutoScalingGroupName)
-				return asg, true
+				return asg, false
 			}
 
 			asg = r.AsgService.GetAutoScalingGroup(asgInstance.Name)
@@ -104,7 +104,7 @@ func (r *ReconcilerService) ReconcileAutoScalingGroup(asgInstance *apiTypes.Auto
 			// check if the changes has been applied
 			r.AsgStatusMonitor()
 
-			return asg, false
+			return asg, true
 		}
 
 		// check launch template version number for all instances is insync, if not, detach
@@ -116,9 +116,11 @@ func (r *ReconcilerService) ReconcileAutoScalingGroup(asgInstance *apiTypes.Auto
 			}
 		}
 
-		log.Println("Stale Instances: ", len(staleInstances))
+		if len(staleInstances) > 0 {
+			log.Println("Stale Instances found in the ASG: ", *asg.AutoScalingGroupName, len(staleInstances))
+		}
 
-		return asg, false
+		return asg, true
 	}
 
 	_, asgErr := r.AsgService.CreateAsg(asgInstance)
@@ -126,6 +128,8 @@ func (r *ReconcilerService) ReconcileAutoScalingGroup(asgInstance *apiTypes.Auto
 		log.Panicln("Failed to create asg", asgErr)
 		return nil, false
 	}
+
+	r.AsgStatusMonitor()
 
 	return nil, true
 }

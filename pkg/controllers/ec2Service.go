@@ -50,7 +50,7 @@ func (r *Ec2Service) GetLaunchTemplateVersion(name *string, version *string) *ec
 		Versions:           versions,
 	}
 
-	log.Println("Getting launch template with version: ", *name, *version)
+	log.Printf("Getting launch template with version: '%v', version: '%v'", *name, *version)
 	response, err := asgSvc.DescribeLaunchTemplateVersions(&input)
 	if err != nil {
 		log.Fatal("Error while getting launch template version", err)
