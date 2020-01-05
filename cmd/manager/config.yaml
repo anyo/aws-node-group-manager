@@ -22,7 +22,7 @@ ec2:
     iamInstanceProfile: talhan-ec2-admin
     ebs:
       volumeSize: 50
-      volumeType: st1
+      volumeType: gp2
     userData: 'yum upgrade -y
 	             yum install bind-utils -y
                yum install git -y'

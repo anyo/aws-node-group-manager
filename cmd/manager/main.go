@@ -66,7 +66,8 @@ func getAwsSession(region string) session.Session {
 
 func loadConfig() apiTypes.OperatorModel {
 	dir, err := os.Getwd()
-	filePath := dir + "/cmd/manager/config.yaml" //"config.yaml" //
+	//filePath := dir + "/cmd/manager/config.yaml"
+	filePath := "config.yaml"
 	config, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		log.Fatal(err, dir)

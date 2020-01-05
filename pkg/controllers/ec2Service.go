@@ -9,6 +9,7 @@ import (
 
 	apiTypes "github.com/anyo/aws-node-group-manager/pkg/apis"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
@@ -21,7 +22,7 @@ type Ec2Service struct {
 
 //GetLaunchTemplate represents
 func (r *Ec2Service) GetLaunchTemplate(name string) *ec2.LaunchTemplate {
-	asgSvc := ec2.New(&r.AwsSession)
+	ec2Svc := ec2.New(&r.AwsSession)
 
 	names := []*string{&name}
 	input := ec2.DescribeLaunchTemplatesInput{
@@ -29,9 +30,18 @@ func (r *Ec2Service) GetLaunchTemplate(name string) *ec2.LaunchTemplate {
 	}
 
 	log.Println("Getting launch template: ", name)
-	response, err := asgSvc.DescribeLaunchTemplates(&input)
+	response, err := ec2Svc.DescribeLaunchTemplates(&input)
 	if err != nil {
-		log.Panicln("Error while getting launch template", err)
+		if aErr, ok := err.(awserr.RequestFailure); ok {
+			switch aErr.StatusCode() {
+			case 400:
+				log.Println("Launch template does not exits")
+				return nil
+			}
+		}
+
+		log.Println("Unknown error while getting launch template", err)
+		return nil
 	}
 
 	if response.LaunchTemplates == nil {
@@ -43,7 +53,7 @@ func (r *Ec2Service) GetLaunchTemplate(name string) *ec2.LaunchTemplate {
 
 //GetLaunchTemplateVersion represents
 func (r *Ec2Service) GetLaunchTemplateVersion(name *string, version *string) *ec2.LaunchTemplateVersion {
-	asgSvc := ec2.New(&r.AwsSession)
+	ec2Svc := ec2.New(&r.AwsSession)
 
 	versions := []*string{version}
 	input := ec2.DescribeLaunchTemplateVersionsInput{
@@ -52,7 +62,7 @@ func (r *Ec2Service) GetLaunchTemplateVersion(name *string, version *string) *ec
 	}
 
 	log.Printf("Getting launch template with version: '%v', version: '%v'", *name, *version)
-	response, err := asgSvc.DescribeLaunchTemplateVersions(&input)
+	response, err := ec2Svc.DescribeLaunchTemplateVersions(&input)
 	if err != nil {
 		log.Fatal("Error while getting launch template version", err)
 	}
@@ -66,10 +76,10 @@ func (r *Ec2Service) GetLaunchTemplateVersion(name *string, version *string) *ec
 
 //GetLaunchTemplates represents
 func (r *Ec2Service) GetLaunchTemplates() []*ec2.LaunchTemplate {
-	asgSvc := ec2.New(&r.AwsSession)
+	ec2Svc := ec2.New(&r.AwsSession)
 
 	input := ec2.DescribeLaunchTemplatesInput{}
-	response, err := asgSvc.DescribeLaunchTemplates(&input)
+	response, err := ec2Svc.DescribeLaunchTemplates(&input)
 	if err != nil {
 		log.Fatal("Error while getting asgs", err)
 	}

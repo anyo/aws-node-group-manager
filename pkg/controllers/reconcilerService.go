@@ -25,9 +25,10 @@ func (r *ReconcilerService) ReconcileLaunchTemplate(newLaunchTemplate *apiTypes.
 	newLaunchTemplate.UserData = base64.StdEncoding.EncodeToString([]byte(newLaunchTemplate.UserData))
 
 	launchTemplate := r.Ec2Service.GetLaunchTemplate(newLaunchTemplate.Name)
-	versionStr := strconv.Itoa(int(*launchTemplate.LatestVersionNumber))
+	var versionStr string
 
 	if launchTemplate != nil {
+		versionStr = strconv.Itoa(int(*launchTemplate.LatestVersionNumber))
 
 		v := r.Ec2Service.GetLaunchTemplateVersion(launchTemplate.LaunchTemplateName, &versionStr)
 
