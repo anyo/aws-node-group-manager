@@ -33,7 +33,7 @@ func main() {
 	}
 
 	c := loadConfig()
-	c.AmiID = reconcilerSvc.GetLatestEksAmi(&k8sVersion)
+	c.AmiID = *reconcilerSvc.GetLatestEksAmi(&k8sVersion)
 
 	templateName, latestVersion, success := reconcilerSvc.ReconcileLaunchTemplate(&c.LaunchTemplateOptions)
 
@@ -66,8 +66,8 @@ func getAwsSession(region string) session.Session {
 
 func loadConfig() apiTypes.OperatorModel {
 	dir, err := os.Getwd()
-	//filePath := dir + "/cmd/manager/config.yaml"
-	filePath := "config.yaml"
+	filePath := dir + "/cmd/manager/config.yaml"
+	//filePath := "config.yaml"
 	config, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		log.Fatal(err, dir)

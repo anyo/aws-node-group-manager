@@ -24,7 +24,8 @@ func (r *AsgService) GetAutoScalingGroups() []*autoscaling.Group {
 	input := autoscaling.DescribeAutoScalingGroupsInput{}
 	grps, err := asgSvc.DescribeAutoScalingGroups(&input)
 	if err != nil {
-		log.Fatal("Error while getting asgs", err)
+		log.Println("Error while getting asgs", err)
+		return nil
 	}
 
 	return grps.AutoScalingGroups
@@ -37,7 +38,8 @@ func (r *AsgService) GetLaunchConfiguration(name string) *autoscaling.LaunchConf
 	input := autoscaling.DescribeLaunchConfigurationsInput{}
 	response, err := asgSvc.DescribeLaunchConfigurations(&input)
 	if err != nil {
-		log.Fatal("Error while getting asgs", err)
+		log.Println("Error while getting asgs", err)
+		return nil
 	}
 
 	if response.LaunchConfigurations == nil {
@@ -60,7 +62,8 @@ func (r *AsgService) GetAutoScalingGroup(name string) *autoscaling.Group {
 
 	response, err := asgSvc.DescribeAutoScalingGroups(&input)
 	if err != nil {
-		log.Fatal("Error while getting asg: ", name, ", Error: ", err)
+		log.Println("Error while getting asg: ", name, ", Error: ", err)
+		return nil
 	}
 
 	if response.AutoScalingGroups == nil {

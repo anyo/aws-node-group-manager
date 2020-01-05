@@ -50,6 +50,7 @@ func (r *ReconcilerService) ReconcileLaunchTemplate(newLaunchTemplate *apiTypes.
 		return nil, &versionStr, false
 	}
 
+	log.Println("Launch template successfully created", template.LaunchTemplateName, &versionStr)
 	return template.LaunchTemplateName, &versionStr, true
 }
 
@@ -104,7 +105,7 @@ func (r *ReconcilerService) ReconcileAutoScalingGroup(asgInstance *apiTypes.Auto
 			log.Println("ASG updated: ", *asg.AutoScalingGroupName)
 
 			// check if the changes has been applied
-			r.AsgStatusMonitor()
+			r.AsgStatusMonitor(asg.AutoScalingGroupName)
 
 			return asg, true
 		}
@@ -124,7 +125,7 @@ func (r *ReconcilerService) ReconcileAutoScalingGroup(asgInstance *apiTypes.Auto
 			for _, v := range staleInstances {
 				detached := r.AsgService.DetachInstance(v.InstanceId, asg.AutoScalingGroupName)
 				if detached {
-					r.AsgStatusMonitor()
+					r.AsgStatusMonitor(asg.AutoScalingGroupName)
 
 					_ = r.Ec2Service.ShutDownInstance(v.InstanceId)
 					_ = r.Ec2Service.TerminateInstance(v.InstanceId)
@@ -137,20 +138,35 @@ func (r *ReconcilerService) ReconcileAutoScalingGroup(asgInstance *apiTypes.Auto
 		return asg, true
 	}
 
+	log.Println("Asg does not exist: ", asgInstance.Name)
 	_, asgErr := r.AsgService.CreateAsg(asgInstance)
 	if asgErr != nil {
-		log.Panicln("Failed to create asg", asgErr)
+		log.Println("Failed to create asg", asgErr)
 		return nil, false
 	}
 
-	r.AsgStatusMonitor()
+	r.AsgStatusMonitor(&asgInstance.Name)
 
 	return nil, true
 }
 
 //AsgStatusMonitor represents
-func (r *ReconcilerService) AsgStatusMonitor() {
-	asg := r.AsgService.GetAutoScalingGroup("OperatorGenerated-GeneralPurpose")
+func (r *ReconcilerService) AsgStatusMonitor(asgName *string) {
+	asg := r.AsgService.GetAutoScalingGroup(*asgName)
+	for {
+		if asg == nil {
+			log.Println("Awaiting ASG to come up")
+			time.Sleep(time.Second * 10)
+			asg = r.AsgService.GetAutoScalingGroup(*asgName)
+		} else {
+			break
+		}
+	}
+
+	if asg == nil {
+		return
+	}
+
 	for {
 		if *asg.DesiredCapacity == int64(len(asg.Instances)) {
 			log.Printf("Desired Capacity matched Current instances: Desired - %v == Current - %v \n", *asg.DesiredCapacity, len(asg.Instances))
@@ -158,7 +174,7 @@ func (r *ReconcilerService) AsgStatusMonitor() {
 		} else {
 			log.Printf("Waiting for Desired Capacity matched Current instances: Desired - %v == Current - %v ... \n", *asg.DesiredCapacity, len(asg.Instances))
 			time.Sleep(2 * time.Second)
-			asg = r.AsgService.GetAutoScalingGroup("OperatorGenerated-GeneralPurpose")
+			asg = r.AsgService.GetAutoScalingGroup(*asgName)
 		}
 	}
 
@@ -174,7 +190,7 @@ func (r *ReconcilerService) AsgStatusMonitor() {
 			log.Println("All done.")
 			break
 		} else {
-			asg = r.AsgService.GetAutoScalingGroup("OperatorGenerated-GeneralPurpose")
+			asg = r.AsgService.GetAutoScalingGroup(*asgName)
 			log.Println("Awaiting all instances to be healthy...")
 			time.Sleep(5 * time.Second)
 		}
@@ -182,11 +198,12 @@ func (r *ReconcilerService) AsgStatusMonitor() {
 }
 
 //GetLatestEksAmi represents
-func (r *ReconcilerService) GetLatestEksAmi(k8sVersion *string) string {
+func (r *ReconcilerService) GetLatestEksAmi(k8sVersion *string) *string {
 	ami, err := r.SsmService.GetEksOptimizedAmi(*k8sVersion)
 	if err != nil {
-		log.Panicln(err)
+		log.Println(err)
+		return nil
 	}
 	log.Println("AWS AMI: ", ami.ImageName, ami.ImageID)
-	return ami.ImageID
+	return &ami.ImageID
 }
